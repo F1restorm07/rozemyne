@@ -1,0 +1,11 @@
+/api_bridge/target/
+/server/target/
+
+/gui/_build/
+/gui/cover/
+/gui/deps/
+/gui/doc/
+/gui/erl_crash.dump/
+/gui/*.ez
+/gui/gui-*.tar
+/gui/tmp/
