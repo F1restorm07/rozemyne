@@ -1,0 +1,40 @@
+[package]
+name = "backend_types"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+backend_graphql = { path = "../graphql" }
+cynic = { workspace = true }
+arrow = { workspace = true }
+parquet = { workspace = true }
+bevy_ecs = { workspace = true }
+notify-debouncer-full = "0.7"
+crossbeam = { workspace = true }
+# bevy_reflect = "0.19"
+highway = { workspace = true }
+enumset = { workspace = true }
+num_enum = { workspace = true }
+derive_builder = { workspace = true }
+ureq = { workspace = true }
+url = "2.5"
+smol_str = "0.3"
+governor = { workspace = true }
+uuid = { workspace = true }
+secrecy = { workspace = true }
+serde = { workspace = true }
+uncased = { workspace = true }
+phf = { workspace = true }
+regex = { workspace = true }
+strum = { workspace = true }
+unicode-general-category = { workspace = true }
+unicode-bidi-mirroring = { workspace = true }
+itertools = { workspace = true }
+roman-numerals-rs = { workspace = true }
+logos = { workspace = true }
+interpolator = { workspace = true }
+bpaf = { workspace = true }
+mlua = { workspace = true, features = ["macros"] }
+
+[build-dependencies]
+cynic-codegen = { version = "3.14", features = ["rkyv"] }

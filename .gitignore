@@ -9,3 +9,5 @@
 /gui/*.ez
 /gui/gui-*.tar
 /gui/tmp/
+
+roadmap.md

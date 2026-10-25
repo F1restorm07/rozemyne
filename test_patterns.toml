@@ -1,0 +1,9 @@
+[[pattern]]
+condition = ""
+predicate = ""
+target = ""
+
+[[format_pattern]]
+condition = 'exists(val="file.volume")'
+pattern = "{media.title.romaji} - {file.volume}"
+target = "file.name"

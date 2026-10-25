@@ -1,0 +1,81 @@
+[package]
+name = "backend_core"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "rozemyne"
+path = "src/main.rs"
+
+[dependencies]
+backend_types = { path = "../types" } # schema definitions
+
+# bevy_app = "0.19" # application handling
+bevy_app = { version = "0.20", features = ["trace"] }
+bevy_time = "0.20"
+bevy_tasks = "0.20"
+bevy_log = "0.20"
+
+bpaf = { workspace = true } # command line argument parser
+yansi = "1.0"
+tabled = "0.22"
+const-hex = "1.19"
+
+# tower = { version = "0.5", features = ["util", "limit"] } # data source handling
+arrow = { workspace = true }
+parquet = { workspace = true }
+
+# @todo: replace this with `bevy_tasks` + switch (back) to `reqwest` to take advantage of async with the rate limiter
+futures-lite = "2.6" # lite futures implementation (used mostly for `block_on()`)
+
+highway = { workspace = true } # file hashing
+uuid = { workspace = true } # file identification
+jiff = "0.2" # timekeeping
+
+tracing = { workspace = true } # logging service
+tracing-subscriber = { workspace = true }
+exn = { workspace = true } # error handling
+
+# etherparse = "0.19" # parsing udp packets
+cynic = { workspace = true } # graphql client
+serde = { workspace = true }
+serde_json = "1" # json deserialization
+serde_urlencoded = "0.7" # url query string serialization
+# juniper = "0.17" # graphql server
+# juniper_axum = "0.3" # hook into web server
+
+regex = { workspace = true }
+fuzzy-matcher = "0.3"
+
+logos = { workspace = true } # lexer
+phf = { workspace = true } # keyword matching
+uncased = { workspace = true } # matching keywords in torrent filenames
+unicode-general-category = { workspace = true }
+unicode-bidi-mirroring = { workspace = true } # parsing punctuation characters in torrent filenames
+itertools = { workspace = true }
+roman-numerals-rs = { workspace = true } # parsing roman numerals in torrent filenames
+
+strum = { workspace = true }
+
+bevy_ecs = { workspace = true, features = ["debug", "detailed_trace"] }
+enumset = { workspace = true }
+derive_builder = { workspace = true }
+
+# deunicode = "1.6"
+unicode-normalization = "0.1"
+heck = "0.5" # case conversion
+toml = "1.1" # configuration data format (wondering if using the database would work as well)
+interpolator = { workspace = true }
+humantime-serde = "1.1"
+parse-size = "1.1"
+
+secrecy = { workspace = true } # storing passwords, api keys, etc in memory
+
+# axum = "0.8" # web server
+ureq = { workspace = true, features = ["json"] } # http client
+governor = { workspace = true } # rate limiter
+
+crossbeam = { workspace = true }
+
+[dev-dependencies]
+rstest = "0.27"

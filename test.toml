@@ -1,0 +1,18 @@
+data_scanning_freq = "24hrs"
+hash_buffer_size = "16 MB"
+pattern_file = "test_patterns.toml"
+
+[[media_folder]]
+id = "test"
+import_path = "/home/n1ghtshade/Documents/selfhosting/rozemyne/unprocessed"
+destination_path = "/home/n1ghtshade/Documents/selfhosting/rozemyne/processed"
+media_type = "Manga"
+
+[archive]
+path = "/home/n1ghtshade/Documents/selfhosting/rozemyne/archive"
+frequency = "24hrs"
+
+[[data_source]]
+name = "mangabaka"
+media_types = ["Manga"]
+supported_queries = ["Search", "Info"]

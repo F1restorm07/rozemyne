@@ -1,0 +1,10 @@
+[package]
+name = "backend_graphql"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cynic = { workspace = true }
+
+[build-dependencies]
+cynic-codegen = { version = "3.14", features = ["rkyv"] }
