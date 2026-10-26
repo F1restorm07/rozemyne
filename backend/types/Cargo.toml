@@ -9,9 +9,10 @@ cynic = { workspace = true }
 arrow = { workspace = true }
 parquet = { workspace = true }
 bevy_ecs = { workspace = true }
+bevy_asset = { workspace = true }
+bevy_reflect = { workspace = true }
 notify-debouncer-full = "0.7"
 crossbeam = { workspace = true }
-# bevy_reflect = "0.19"
 highway = { workspace = true }
 enumset = { workspace = true }
 num_enum = { workspace = true }

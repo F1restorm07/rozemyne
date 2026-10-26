@@ -9,8 +9,6 @@ use enumset::EnumSet;
 use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 
-use crate::files::renamer::PatternEngine;
-
 // @todo: add a general settings table
 #[derive(Debug, Resource, Deserialize)]
 pub struct Settings {
@@ -19,20 +17,22 @@ pub struct Settings {
     archive: ArchiveSettings,
     #[serde(rename = "data_source")]
     data_sources: Vec<DataSource>,
-    pattern_file: PathBuf,
+    // pattern_file: PathBuf,
     #[serde(with = "humantime_serde")]
     data_scanning_freq: Duration,
     hash_buffer_size: String,
+    renamer_script: PathBuf,
 }
 
 impl Settings {
     pub fn archive_path(&self) -> &Path { &self.archive.path }
     pub fn media_folders(&self) -> &[MediaFolder] { &self.media_folders }
-    pub fn pattern_file(&self) -> &Path { &self.pattern_file }
+    // pub fn pattern_file(&self) -> &Path { &self.pattern_file }
     pub fn hash_buffer_size(&self) -> u64
         { parse_size::parse_size(&self.hash_buffer_size).unwrap() }
     pub fn data_scanning_frequency(&self) -> Duration { self.data_scanning_freq }
     pub fn archive_frequency(&self) -> Duration { self.archive.frequency }
+    pub fn renamer_script(&self) -> &Path { &self.renamer_script }
 }
 
 #[derive(Debug, Deserialize)]
@@ -117,28 +117,7 @@ impl bevy_app::Plugin for ConfigPlugin {
         // @todo: read path from cli, or fallback to default
         let file = fs::read(&self.path).unwrap();
         let mut config: Settings = toml::from_slice(&file).unwrap();
-        config.pattern_file = if config.pattern_file.is_relative() {
-            self.path.with_file_name(config.pattern_file)
-        } else {
-            config.pattern_file
-        };
-
-        let patterns_file = fs::read(&config.pattern_file).unwrap();
-        let patterns: Patterns = toml::from_slice(&patterns_file).unwrap();
-
-        let mut engine = PatternEngine::new();
-        for pat in patterns.patterns {
-            if !pat.predicate.is_empty() {
-                engine.add_pattern(pat.condition.as_deref(), &pat.predicate, Some(&pat.target));
-            }
-        }
-        for pat in patterns.format_patterns {
-            if !pat.pattern.is_empty() {
-                engine.add_format_pattern(pat.condition.as_deref(), pat.pattern, &pat.target);
-            }
-        }
 
         app.insert_resource(config);
-        app.insert_resource(engine);
     }
 }

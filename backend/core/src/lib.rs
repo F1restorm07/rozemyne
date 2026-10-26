@@ -1,11 +1,17 @@
 #![allow(unused)] // to silence all the `unused ...` warnings (remove later)
 #![allow(dead_code)] // to silence all the `... are never read` warnings (remove later)
 
+use backend_types::lua::ScriptAsset;
+use bevy_asset::AssetApp;
+
+use self::lua::ScriptAssetLoader;
+
 pub mod cli;
 pub mod files;
 pub mod source;
 pub mod storage;
 pub mod configuration;
+pub mod lua;
 
 pub struct SetupPlugins;
 
@@ -18,11 +24,16 @@ impl bevy_app::PluginGroup for SetupPlugins {
             .add(SchedulePlugin)
             // @todo: customize this
             .add(bevy_log::LogPlugin {
-                level: bevy_log::Level::DEBUG,
+                level: bevy_log::Level::INFO,
                 ..Default::default()
             })
             .add(bevy_app::TaskPoolPlugin::default())
             .add(bevy_time::TimePlugin)
+            .add(bevy_asset::AssetPlugin {
+                file_path: "../../assets".to_string(),
+                ..Default::default()
+            })
+            .add(ScriptingPlugin)
     }
 }
 
@@ -91,6 +102,9 @@ pub struct ScriptingPlugin;
 
 impl bevy_app::Plugin for ScriptingPlugin {
     fn build(&self, app: &mut bevy_app::App) {
+        app.init_asset::<ScriptAsset>()
+            .init_asset_loader::<ScriptAssetLoader>()
+            .add_systems(bevy_app::Startup, files::renamer::load_renamer_script);
         // required constructs:
         // - script processing (see `bevy_mod_scripting`)
         // -- pretty much handling initial script setup and loading into the system

@@ -31,15 +31,16 @@ use std::path::PathBuf;
 
 use crate::configuration::Settings;
 use crate::files::{self, FileLoadingPlugin};
-use crate::files::renamer::PatternEngine;
 use backend_types::cli::{Args, CliExternalQuery, CliFileAction, CliInternalQuery, ExternalQueryCmd, FilesCmd, InternalQueryCmd, QueryType};
 use backend_types::files::{MediaFile, ParsedFilename};
-use backend_types::media::query::{MediaGenreQuery, MediaTitleQuery};
-use backend_types::media::{ItemUuid, MediaId, MediaTitles, MediaType, TitleTrait};
+use backend_types::lua::ScriptAsset;
+use backend_types::media::query::{IsMature, MediaGenreQuery, MediaTitleQuery};
+use backend_types::media::{ItemUuid, MangaFormat, MediaChapterAmount, MediaId, MediaTitles, MediaType, MediaVolumeAmount, TitleTrait};
 use backend_types::media::data_source::{DataQueryType, Media, MediaExternalRequest, MediaInternalRequest, MediaInternalResponse, NoInternalMedia};
 use backend_types::parser::token::Lexer;
-use backend_types::renamer::{Filterable, Value};
+use backend_types::renamer::{FileMetadata, MediaMetadata, RenamedFile, RenamerScript, RenamerSettings};
 use bevy_app::AppExit;
+use bevy_asset::Assets;
 use bevy_ecs::component::Component;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
@@ -68,7 +69,7 @@ impl bevy_app::Plugin for CliPlugin {
         app.add_systems(bevy_app::PreUpdate, cli_files);
         // insert into `PostUpdate` since most to all other systems operate in `Update`
         // @todo: move `cli_files` into `PreUpdate` to allow for querying the ECS system for renaming
-        app.add_systems(bevy_app::PostUpdate, (cli_internal_query, cli_external_query, cli_rename));
+        app.add_systems(bevy_app::Last, (cli_internal_query, cli_external_query, cli_rename));
         app.add_observer(cli_internal_fail);
     }
 }
@@ -179,7 +180,6 @@ fn cli_files(
                         media_req.clone(), MediaTitleQuery(parsed.title.clone()),
                     ));
                     cmds.spawn((action.file.clone(), parsed, CliInternalQuery { id: media_req.id() }));
-                    println!("sending out request `{:?}`", media_req.id());
                 }
                 _ => {}
             }
@@ -243,7 +243,7 @@ fn create_parsed_metadata_table(parsed: &ParsedFilename) -> Table {
         builder.push_record(vec!["Service", &s]);
     }
     if let Some(ref s) = parsed.rip_source {
-        builder.push_record(vec!["Rip Source", &s]);
+        builder.push_record(vec!["Rip Source", &format!("{s}")]);
     }
     if let Some(ref r) = parsed.resolution {
         builder.push_record(vec!["Resolution", &r]);
@@ -310,6 +310,7 @@ fn create_parsed_flags_table(parsed: &ParsedFilename) -> Table {
 
 // how can i pull an error out of a system from bevy's error handler
 // ^^ this system *always* runs, even when the `dispatch_media_request` system fails
+// @todo: only run this system on the `Query::Internal` command (as it also runs during renaming)
 fn cli_internal_query(
     query: Single<&CliInternalQuery>,
     resps: Query<(&MediaInternalResponse, &MediaId)>,
@@ -326,9 +327,9 @@ fn cli_internal_query(
             )
             .unwrap();
         // @todo: point towards the `info` command?? (or display all search results?)
-        println!("internal media id: {:?}", id.0);
-        println!("media title: {}", title.title);
-        println!("all titles: {:?}", ent.get::<MediaTitles>().unwrap());
+        // println!("internal media id: {:?}", id.0);
+        // println!("media title: {}", title.title);
+        // println!("all titles: {:?}", ent.get::<MediaTitles>().unwrap());
         exit.write(AppExit::Success);
     }
 }
@@ -371,56 +372,77 @@ fn cli_external_query(
 
 fn cli_rename(
     settings: Res<Settings>,
-    engine: Res<PatternEngine>,
     query: Single<(&mut MediaFile, &ParsedFilename, &CliInternalQuery)>,
     resps: Query<(&MediaInternalResponse, &MediaId)>,
     media: Query<(EntityRef, &ItemUuid), (With<Media>, Without<MediaFile>, Without<IsResource>)>,
+    renamer_script: Res<RenamerScript>,
+    scripts: Res<Assets<ScriptAsset>>,
     mut exit: MessageWriter<AppExit>,
 ) {
     let (mut file, file_info, query) = query.into_inner();
 
     if let Some((_resp, id)) = resps.iter().find(|(r,_)| r.id() == query.id) {
-        let (media, _id) = media.iter().find(|(_, i)| i.0 == id.0).unwrap();
-        let mut ctx = file_info.get_context();
-
-        let media_titles = media.get::<MediaTitles>().unwrap();
-        let romaji_title = media_titles.0.iter().find(|t|
-            t.language.as_ref().is_some_and(|t| t == "ja-Latn") && t.traits.contains(TitleTrait::Primary)
-        );
+        let (media_info, _id) = media.iter().find(|(_, i)| i.0 == id.0).unwrap();
+        // let mut ctx = file_info.get_context();
+        //
+        let media_titles = media_info.get::<MediaTitles>().unwrap();
         let eng_title = media_titles.0.iter().find(|t|
             t.language.as_ref().is_some_and(|t| t == "en") && t.traits.contains(TitleTrait::Official)
-        );
+        ).unwrap();
 
-        if let Some(title) = romaji_title {
-            ctx.insert("media.title.romaji", title.title.as_str());
-        }
-        if let Some(title) = eng_title {
-            ctx.insert("media.title.english", title.title.as_str());
-        }
-
-        ctx.insert("file.name", file_info.title.clone());
-        let root_path = settings.media_folders().iter()
-            .find(|f| f.id() == file.folder_id());
-        let file_path = if let Some(path) = root_path {
-            path.destination_path().iter()
-                .map(|s| Value::Str(s.to_str().unwrap().into()))
-                .collect::<Vec<_>>()
-        } else {
-            file.path().parent().unwrap().iter()
-                .map(|s| Value::Str(s.to_str().unwrap().into()))
-                .collect::<Vec<_>>()
+        let media_metadata = match media_info.get::<Media>().unwrap().0 {
+            MediaType::Manga => MediaMetadata::Manga {
+                format: media_info.get::<MangaFormat>().unwrap().clone(),
+                // @todo: use *every* title here
+                title: media_info.get::<MediaTitles>().unwrap().0.iter()
+                    .find(|t|
+                        t.language.as_ref().is_some_and(|l| matches!(l.as_str(), "en"))
+                            && t.traits.contains(TitleTrait::Primary)
+                    )
+                    .map(|t| t.title.clone()).unwrap(),
+                volume: media_info.get::<MediaVolumeAmount>().map(|v| v.0),
+                chapter: media_info.get::<MediaChapterAmount>().map(|c| c.0),
+                volume_title: None,
+                chapter_title: None,
+                explicit: media_info.contains::<IsMature>()
+            },
+            _ => todo!(),
         };
-        ctx.insert("file.path", file_path);
-        ctx.insert("file.extension", file_info.file_extension.as_deref().unwrap_or(""));
 
-        engine.render(&mut ctx);
+        renamer_script.context.globals().set("file", FileMetadata {
+            folder_id: file.folder_id().to_string(),
+            path: file.path().to_owned(),
+            title: eng_title.title.clone(),
+            group: file_info.release_group.clone(),
+            languages: file_info.languages.clone(),
+            resolution: file_info.resolution.clone(),
+            audio_codec: file_info.audio_codec.clone(),
+            video_codec: file_info.video_codec.clone(),
+            service: file_info.service.clone(),
+            rip_source: file_info.rip_source,
+            bit_depth: file_info.bit_depth.clone(),
+            file_version: file_info.version,
+        });
+        renamer_script.context.globals().set("media", media_metadata);
+        // allows for creating the return values in the lua scripts,
+        // otherwise i get an error for converting the raw lua table into `RenamedFile`
+        renamer_script.context.globals().set("RenamedFile", renamer_script.context.create_proxy::<RenamedFile>().unwrap());
+        renamer_script.context.globals().set("RenamerSettings", renamer_script.context.create_proxy::<RenamerSettings>().unwrap());
 
-        let file_path = ctx.get("file.path").unwrap()
-            .as_array().unwrap()
-            .iter().map(|v| v.as_string().unwrap())
-            .collect::<std::path::PathBuf>();
-        let file_path = file_path.join(ctx.get("file.name").unwrap().as_string().unwrap())
-            .with_extension(ctx.get("file.extension").unwrap().as_string().unwrap());
+        let script = scripts.get(&renamer_script.script).unwrap();
+        let renamed_file: RenamedFile = renamer_script.context.load(&*script.content).eval().unwrap();
+
+        let root_path = settings.media_folders().iter()
+            .find(|f| f.id() == file.folder_id())
+            .unwrap();
+        let mut file_path = root_path.destination_path()
+            .join(renamed_file.file_path())
+            .join(renamed_file.file_name());
+
+        if let Some(ref ext) = file_info.file_extension {
+            file_path = file_path.with_extension(ext);
+        }
+
 
         std::fs::create_dir_all(file_path.parent().unwrap());
         std::fs::rename(file.path(), &file_path);

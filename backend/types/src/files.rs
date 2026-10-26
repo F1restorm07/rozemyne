@@ -13,9 +13,9 @@ use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, ne
 use notify_debouncer_full::notify::RecommendedWatcher;
 
 use crate::media::MediaType;
-use crate::parser::keyword::{KeywordFlag, Language};
+use crate::parser::keyword::{KeywordFlag, Language, RipSource};
 use crate::parser::{Segment, SegmentKind};
-use crate::renamer::{self, Filterable};
+// use crate::renamer::{self, Filterable};
 
 #[derive(Debug, Component, Clone, mlua::UserData, mlua::FromLua)]
 pub struct MediaFile {
@@ -83,7 +83,7 @@ pub struct ParsedFilename {
     pub year: Option<u32>,
 
     pub service: Option<String>,
-    pub rip_source: Option<String>,
+    pub rip_source: Option<RipSource>,
     // @todo: add language enum(set) here (embed within the keyword)
     pub languages: Vec<Language>,
 
@@ -91,6 +91,7 @@ pub struct ParsedFilename {
     pub audio_codec: Option<String>,
     pub audio_channels: Option<String>,
     pub video_codec: Option<String>,
+    pub bit_depth: Option<String>,
 
     pub keyword_flags: enumset::EnumSet<KeywordFlag>,
 
@@ -100,7 +101,7 @@ pub struct ParsedFilename {
 
 impl ParsedFilename {
     pub fn new(title_parts: &[Segment]) -> Self {
-        println!("{title_parts:?}");
+        // println!("{title_parts:?}");
         if title_parts.iter().any(|p| matches!(p.kind, SegmentKind::Title)) {
             let title = title_parts.iter()
                 .find(|p| matches!(p.kind, SegmentKind::Title))
@@ -136,8 +137,12 @@ impl ParsedFilename {
                 .find(|p| matches!(p.kind, SegmentKind::Service))
                 .map(|p| p.text.to_string());
             let rip_source = title_parts.iter()
-                .find(|p| matches!(p.kind, SegmentKind::Source))
-                .map(|p| p.text.to_string());
+                .find(|p| matches!(p.kind, SegmentKind::Source(_)))
+                .map(|p| {
+                    let SegmentKind::Source(s) = p.kind else { panic!("uh-oh") };
+                    s
+                });
+                // .map(|p| p.text.to_string());
 
             let languages = title_parts.iter()
                 .filter(|p| matches!(p.kind, SegmentKind::Language(_)))
@@ -157,6 +162,9 @@ impl ParsedFilename {
                 .map(|p| p.text.to_string());
             let video_codec = title_parts.iter()
                 .find(|p| matches!(p.kind, SegmentKind::VideoCodec))
+                .map(|p| p.text.to_string());
+            let bit_depth = title_parts.iter()
+                .find(|p| matches!(p.kind, SegmentKind::BitDepth))
                 .map(|p| p.text.to_string());
 
             let keyword_flags = title_parts.iter()
@@ -186,6 +194,7 @@ impl ParsedFilename {
                 audio_codec,
                 audio_channels,
                 video_codec,
+                bit_depth,
                 keyword_flags,
                 file_extension,
                 version,
@@ -197,25 +206,25 @@ impl ParsedFilename {
     }
 }
 
-impl Filterable for ParsedFilename {
-    fn get_context(&self) -> crate::renamer::Context {
-        let mut context: renamer::Context = [
-            ("file.title".parse().unwrap(), self.title.as_str().into())
-        ].into();
-
-        if let Some(season) = self.season {
-            context.insert("file.season", season as u64);
-        }
-        if let Some(episode) = self.episode {
-            context.insert("file.episode", episode as u64);
-        }
-        if let Some(volume) = self.volume {
-            context.insert("file.volume", volume as u64);
-        }
-
-        context
-    }
-}
+// impl Filterable for ParsedFilename {
+//     fn get_context(&self) -> crate::renamer::Context {
+//         let mut context: renamer::Context = [
+//             ("file.title".parse().unwrap(), self.title.as_str().into())
+//         ].into();
+//
+//         if let Some(season) = self.season {
+//             context.insert("file.season", season as u64);
+//         }
+//         if let Some(episode) = self.episode {
+//             context.insert("file.episode", episode as u64);
+//         }
+//         if let Some(volume) = self.volume {
+//             context.insert("file.volume", volume as u64);
+//         }
+//
+//         context
+//     }
+// }
 
 // a clone of bevy_asset's `FileWatcher`
 pub struct FileWatcher {

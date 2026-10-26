@@ -59,12 +59,14 @@ pub fn archive_anime(
 }
 
 pub fn archive_manga(
-    manga: Populated<(
+    // manga: Populated<(
+    manga: Query<(
         &ItemUuid, &MangaFormat, Option<&MediaChapterAmount>, Option<&MediaVolumeAmount>,
         Option<&MediaDescription>, &MediaAirDate, &MediaSource, &MediaStatus, &SourceIds, &MediaTitles,
     )>,
     settings: Res<Settings>,
 ) {
+    // println!("archiving manga: {}");
     let manga = manga.iter().map(|(id, format, ch, vol, desc, air_date, source, status, source_ids, titles)| {
         MangaBuilder::default()
             .id(id.0)
@@ -131,7 +133,7 @@ impl bevy_app::Plugin for ArchivalPlugin {
         let settings = app.world().get_resource::<Settings>().unwrap();
         // tick the archival timers at a fixed interval
         // run the schedule on a timer, or when the app is shutting down
-        app.add_systems(bevy_app::FixedLast, (
+        app.add_systems(bevy_app::Last, (
             archive_anime, archive_manga,
             ).run_if(on_timer(settings.archive_frequency())
                 .or_else(on_message::<AppExit>))

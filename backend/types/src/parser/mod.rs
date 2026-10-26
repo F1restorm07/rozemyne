@@ -99,7 +99,7 @@ pub fn keyword_to_title_part(kywd: KeywordKind) -> SegmentKind {
         KeywordKind::Subbed => SegmentKind::Subbed,
         KeywordKind::VideoCodec => SegmentKind::VideoCodec,
         KeywordKind::VideoColor => SegmentKind::Color,
-        KeywordKind::VideoColorDepth => SegmentKind::Color,
+        KeywordKind::VideoColorDepth => SegmentKind::BitDepth,
         KeywordKind::VideoResolution => SegmentKind::Resolution,
         KeywordKind::FileExtension => SegmentKind::FileExtension,
         KeywordKind::Convert => SegmentKind::Convert,

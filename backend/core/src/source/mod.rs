@@ -34,7 +34,7 @@ pub mod mangabaka;
 // pud mod musicbrainz;
 
 pub fn dispatch_media_request(
-    add: On<Add, MediaInternalRequest>,
+    add: On<Add<MediaInternalRequest>>,
     reqs: Query<(&MediaInternalRequest, &MediaTitleQuery), With<MediaInternalRequest>>,
     media: Query<(&ItemUuid, &Media, &MediaTitles)>,
     mut cmds: Commands,
@@ -69,7 +69,7 @@ pub fn dispatch_media_request(
     Ok(())
 }
 pub fn dispatch_data_source_request(
-    add: On<Add, MediaExternalRequest>,
+    add: On<Add<MediaExternalRequest>>,
     reqs: Query<(&MediaExternalRequest, &MediaTitleQuery)>,
     media_clients: Populated<(Entity, &DataSourceName, &SupportedMediaTypes), With<DataSourceBaseUrl>>,
     mut cmds: Commands,
@@ -95,7 +95,7 @@ pub fn dispatch_data_source_request(
 }
 
 pub fn dispatch_next_request(
-    add: On<Add, DataSourceResponse>,
+    add: On<Add<DataSourceResponse>>,
     resps: Query<(
         &ChildOf, &MediaRequestId, &DataSourceResponse, &MediaSourceId, &MediaType,
     )>,
@@ -131,7 +131,8 @@ pub fn dispatch_next_request(
 }
 
 pub fn manga_info_builder(
-    media: Populated<
+    // media: Populated<
+    media: Query<
         (EntityRef, &MediaRequestId, &MediaType, &DataSourceResponse),
     >,
     clients: Populated<(Entity, &DataSourceName)>,
@@ -145,6 +146,7 @@ pub fn manga_info_builder(
         });
 
     for (id, query_group) in id_groups {
+        // println!("query_group: {}");
         // @todo: add field checks here (have we already inserted the field into the builder?)
         let mut builder = MangaBuilder::default();
         builder.id(id.0);
@@ -231,19 +233,19 @@ impl bevy_app::Plugin for DataSourcePlugin {
             .add_observer(dispatch_next_request);
         // how should i orchestrate the schedule?
         // do i wanna messaging system between the dispatchers and the query systems?
-        app.add_systems(bevy_app::FixedUpdate, (
+        app.add_systems(bevy_app::Update, (
             mangabaka::search_request,
         ).in_set(DataQueryingSystems::Search));
-        app.add_systems(bevy_app::FixedUpdate, (
+        app.add_systems(bevy_app::Update, (
             mangabaka::info_request
         ).in_set(DataQueryingSystems::Info));
-        app.configure_sets(bevy_app::FixedUpdate, (
+        app.configure_sets(bevy_app::Update, (
             DataQueryingSystems::Search,
             DataQueryingSystems::Info,
             DataQueryingSystems::Relations,
         ).chain());
         // data aggregation systems
-        app.add_systems(bevy_app::FixedPostUpdate, (
+        app.add_systems(bevy_app::PostUpdate, (
             manga_info_builder,
         ));
     }

@@ -17,7 +17,8 @@ tracing = "0.1" # logging
 tracing-subscriber = "0.3"
 exn = "0.3" # error handling (@todo: replace with `snafu`)
 bevy_ecs = { version = "0.20", default-features = false, features = ["std", "async_executor"] }
-# bevy_asset = "0.19"
+bevy_asset = "0.20"
+bevy_reflect = "0.20"
 enumset = "1.1"
 num_enum = "0.7"
 derive_builder = "0.20"

@@ -41,10 +41,11 @@ pub enum FilesCmd {
 #[derive(Debug, Clone, Bpaf)]
 #[bpaf(generate(files))]
 pub struct FilesArgs {
+    // #[bpaf(positional("PATH"))]
+    #[bpaf(long("path"))]
+    pub path: PathBuf,
     #[bpaf(external(files_cmd))]
     pub cmd: FilesCmd,
-    #[bpaf(positional("PATH"))]
-    pub path: PathBuf,
 }
 
 #[derive(Debug, Clone, Bpaf)]
@@ -153,11 +154,11 @@ fn volumes() -> impl Parser<Option<u32>> {
         .optional()
 }
 fn source() -> impl Parser<Option<MediaSource>> {
-    tag("source=", "SOURCE", "file for media with the given SOURCE")
+    tag("source=", "SOURCE", "filter for media with the given SOURCE")
         .optional()
 }
 fn status() -> impl Parser<Option<MediaStatus>> {
-    tag("status=", "STATUS", "file for media with the given STATUS")
+    tag("status=", "STATUS", "filter for media with the given STATUS")
         .optional()
 }
 

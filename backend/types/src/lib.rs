@@ -4,3 +4,4 @@ pub mod parser;
 pub mod renamer;
 pub mod files;
 pub mod cli;
+pub mod lua;

@@ -234,7 +234,7 @@ impl Language {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, strum::Display, mlua::UserData, mlua::FromLua)]
+#[derive(Debug, Clone, Copy, PartialEq, strum::Display, mlua::UserData, mlua::FromLua)]
 pub enum RipSource {
     PayPerView,
     WEBDL,

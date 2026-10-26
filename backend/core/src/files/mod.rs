@@ -20,12 +20,14 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use backend_types::files::{FileEvent, FileServer, FileWatcher, FileWatcherId, MediaFile, MetadataRetry, ParsedFilename, UnprocessedFile, WaitingForMetadata};
+use backend_types::lua::ScriptAsset;
 use backend_types::media::data_source::{DataQueryType, DataSourceRequest, DataSourceResponse, Media, MediaInternalRequest, MediaRequest, MediaRequestId};
-use backend_types::media::query::MediaTitleQuery;
-use backend_types::media::{ItemUuid, MediaId, MediaTitles, MediaType, TitleTrait};
+use backend_types::media::query::{IsMature, MediaTitleQuery};
+use backend_types::media::{ItemUuid, MangaFormat, MediaChapterAmount, MediaId, MediaTitles, MediaType, MediaVolumeAmount, TitleTrait};
 use backend_types::parser::SegmentKind;
 use backend_types::parser::token::{Lexer, TokenIter};
-use backend_types::renamer::{Context, Filterable};
+use backend_types::renamer::{FileMetadata, MediaMetadata, RenamedFile, RenamerScript};
+use bevy_asset::{AssetServer, Assets};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::{Or, With, Without};
 use bevy_ecs::schedule::IntoScheduleConfigs;
@@ -33,8 +35,6 @@ use bevy_ecs::system::{Commands, Query, Res};
 use bevy_ecs::world::EntityRef;
 
 use crate::configuration::Settings;
-
-use self::renamer::PatternEngine;
 
 pub mod parser;
 pub mod renamer;
@@ -146,7 +146,8 @@ fn rename_and_move_files(
     // @todo: figure out what to pull in here (and what goes in the pattern engine?)
     // `EntityRef` is here since every media type has different data components
     media: Query<(EntityRef, &ItemUuid, &Media), Without<MediaFile>>,
-    engine: Res<PatternEngine>,
+    renamer_script: Res<RenamerScript>,
+    scripts: Res<Assets<ScriptAsset>>,
     mut cmds: Commands,
 ) {
     // construct the structures that will head into the renaming engine
@@ -155,38 +156,77 @@ fn rename_and_move_files(
     for (ent, media_id, mut file, _, file_info) in files {
         // @todo: update context entries + return new context (needed for file moving)
         let (media_info, _, _) = media.iter().find(|(_, id, _)| id.0 == media_id.0).unwrap();
-        let mut context = Context::new();
-        context.extend(file_info.get_context());
-
+        // let mut context = Context::new();
+        // context.extend(file_info.get_context());
+        //
         let media_titles = media_info.get::<MediaTitles>().unwrap();
         let eng_title = media_titles.0.iter().find(|t|
             t.language == Some("en".to_string()) && t.traits.contains(TitleTrait::Official)
         ).unwrap();
-        context.insert("media.title", eng_title.title.as_str());
-        // how can i insert the file path into the context?
-        // ^^ should i split it into series + season?
-        // ^^ in that case, i'll need media relation data to track the series chain
-        // ^^ how could i associate an item with a particular series
+        // context.insert("media.title", eng_title.title.as_str());
+        // // how can i insert the file path into the context?
+        // // ^^ should i split it into series + season?
+        // // ^^ in that case, i'll need media relation data to track the series chain
+        // // ^^ how could i associate an item with a particular series
+        //
+        // // insert "output" items with their default values
+        // context.insert("file.name", file_info.title.clone());
+        // let root_path = settings.media_folders().iter().find(|f| f.id() == file.folder_id()).unwrap();
+        // let file_path = root_path.destination_path().iter()
+        //     .map(|s| backend_types::renamer::Value::Str(s.to_str().unwrap().into()))
+        //     .collect::<Vec<_>>();
+        // context.insert("file.path", file_path);
+        // context.insert("file.extension", file_info.file_extension.as_deref().unwrap_or(""));
+        //
+        // engine.render(&mut context);
+        //
+        // // @todo: support moving extras + image + other folders over
+        // // file path: root_path/media_series/media_name
+        // // file name: <file name>
+        // let file_path = context.get("file.path").unwrap()
+        //     .as_array().unwrap()
+        //     .iter().map(|v| v.as_string().unwrap())
+        //     .collect::<std::path::PathBuf>();
 
-        // insert "output" items with their default values
-        context.insert("file.name", file_info.title.clone());
-        let root_path = settings.media_folders().iter().find(|f| f.id() == file.folder_id()).unwrap();
-        let file_path = root_path.destination_path().iter()
-            .map(|s| backend_types::renamer::Value::Str(s.to_str().unwrap().into()))
-            .collect::<Vec<_>>();
-        context.insert("file.path", file_path);
-        context.insert("file.extension", file_info.file_extension.as_deref().unwrap_or(""));
+        let media_metadata = match media_info.get::<Media>().unwrap().0 {
+            MediaType::Manga => MediaMetadata::Manga {
+                format: media_info.get::<MangaFormat>().unwrap().clone(),
+                title: media_info.get::<MediaTitles>().unwrap().0.iter()
+                    .find(|t|
+                        t.language.as_ref().is_some_and(|l| matches!(l.as_str(), "en"))
+                            && t.traits.contains(TitleTrait::Primary)
+                    )
+                    .map(|t| t.title.clone()).unwrap(),
+                volume: media_info.get::<MediaVolumeAmount>().map(|v| v.0),
+                chapter: media_info.get::<MediaChapterAmount>().map(|c| c.0),
+                volume_title: None,
+                chapter_title: None,
+                explicit: media_info.contains::<IsMature>()
+            },
+            _ => todo!(),
+        };
 
-        engine.render(&mut context);
+        renamer_script.context.globals().set("file", FileMetadata {
+            folder_id: file.folder_id().to_string(),
+            path: file.path().to_owned(),
+            title: eng_title.title.clone(),
+            group: file_info.release_group.clone(),
+            languages: file_info.languages.clone(),
+            resolution: file_info.resolution.clone(),
+            audio_codec: file_info.audio_codec.clone(),
+            video_codec: file_info.video_codec.clone(),
+            service: file_info.service.clone(),
+            rip_source: file_info.rip_source,
+            bit_depth: file_info.bit_depth.clone(),
+            file_version: file_info.version,
+        });
+        renamer_script.context.globals().set("media", media_metadata);
 
-        // @todo: support moving extras + image + other folders over
-        // file path: root_path/media_series/media_name
-        // file name: <file name>
-        let file_path = context.get("file.path").unwrap()
-            .as_array().unwrap()
-            .iter().map(|v| v.as_string().unwrap())
-            .collect::<std::path::PathBuf>();
-        let file_path = file_path.join(context.get("file.name").unwrap().as_string().unwrap());
+        let script = scripts.get(&renamer_script.script).unwrap();
+        let renamed_file: RenamedFile = renamer_script.context.load(&*script.content).eval().unwrap();
+
+        let file_path = renamed_file.file_path().join(renamed_file.file_name());
+        // let file_path = file_path.join(context.get("file.name").unwrap().as_string().unwrap());
 
         // create any missing directories before moving file
         std::fs::create_dir_all(file_path.parent().unwrap()).unwrap();

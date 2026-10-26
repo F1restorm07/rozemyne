@@ -1,6 +1,7 @@
 data_scanning_freq = "24hrs"
 hash_buffer_size = "16 MB"
 pattern_file = "test_patterns.toml"
+renamer_script = "renamer.lua"
 
 [[media_folder]]
 id = "test"
