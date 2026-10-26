@@ -432,17 +432,21 @@ fn cli_rename(
         let script = scripts.get(&renamer_script.script).unwrap();
         let renamed_file: RenamedFile = renamer_script.context.load(&*script.content).eval().unwrap();
 
-        let root_path = settings.media_folders().iter()
+        let mut file_path = if let Some(root_path) = settings.media_folders().iter()
             .find(|f| f.id() == file.folder_id())
-            .unwrap();
-        let mut file_path = root_path.destination_path()
-            .join(renamed_file.file_path())
-            .join(renamed_file.file_name());
+        {
+            root_path.destination_path()
+                .join(renamed_file.file_path())
+                .join(renamed_file.file_name())
+        } else {
+            file.path().parent().unwrap()
+                .join(renamed_file.file_path())
+                .join(renamed_file.file_name())
+        };
 
         if let Some(ref ext) = file_info.file_extension {
             file_path = file_path.with_extension(ext);
         }
-
 
         std::fs::create_dir_all(file_path.parent().unwrap());
         std::fs::rename(file.path(), &file_path);
